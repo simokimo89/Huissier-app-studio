@@ -29,6 +29,7 @@ import {
 import { User as UserType, UserRole, JudicialFile, JudicialReport, MediaFile, FinancialLedgerItem, LocalAlert } from './types';
 import { dbService } from './lib/db';
 import { getSyncStatus, performSynchronize, getOnlineStatus } from './lib/sync';
+import { supabase } from './lib/supabase';
 
 // Subcomponents import
 import Navbar from './components/Navbar';
@@ -152,16 +153,23 @@ export default function App() {
 
   const fetchTeamData = async () => {
     try {
-      const res = await fetch('/api/team');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.team) {
-          setTeam(data.team);
-          localStorage.setItem('court_team_roster', JSON.stringify(data.team));
-        }
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('*');
+
+      if (!error && profiles && profiles.length > 0) {
+        const mappedTeam = profiles.map(p => ({
+          username: p.username,
+          name: p.full_name,
+          role: p.role,
+          office: p.office_name,
+          password: 'admin2026', // Default for quick-login buttons
+        }));
+        setTeam(mappedTeam);
+        localStorage.setItem('court_team_roster', JSON.stringify(mappedTeam));
       }
     } catch (e) {
-      console.warn('Backend team API unreachable, using cached localStorage roster', e);
+      console.warn('Supabase profiles table unreachable, using cached roster', e);
     }
   };
 
@@ -485,7 +493,7 @@ export default function App() {
     });
   };
 
-  // 2. Custom Role-Based Authentication triggers
+  // 2. Supabase Authentication trigger
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginUsername.trim() || !loginPassword) {
@@ -497,26 +505,61 @@ export default function App() {
     setLoginError('');
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: loginUsername, password: loginPassword })
+      // 1. Look up user by username in Supabase profiles table
+      const { data: profiles, error: lookupError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('username', loginUsername.trim().toLowerCase());
+
+      if (lookupError || !profiles || profiles.length === 0) {
+        // Fallback to local team if Supabase unreachable
+        throw new Error('Profile not found on Supabase');
+      }
+
+      const profile = profiles[0];
+      // Use convention: username@bailiff.ma as the auth email
+      const email = `${profile.username}@bailiff.ma`;
+
+      // 2. Authenticate with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password: loginPassword,
       });
 
-      const result = await response.json();
-      if (result.success) {
-        localStorage.setItem('court_user_session', JSON.stringify(result.user));
-        // Seed default security PIN for this user
-        localStorage.setItem('bailiff_vault_pin', result.user.username + '_secure_2026');
-        
-        setCurrentUser(result.user);
-        setLoginUsername('');
-        setLoginPassword('');
-      } else {
-        setLoginError(result.message || 'خطأ في المصادقة القانونية.');
+      if (authError) {
+        if (authError.message?.includes('Invalid login')) {
+          setLoginError('رمز المرور غير صحيح لهذا المستخدم.');
+        } else {
+          setLoginError(`خطأ في المصادقة: ${authError.message}`);
+        }
+        setIsLoggingIn(false);
+        return;
       }
+
+      // 3. Create session from profile + auth
+      const user = {
+        id: authData.user.id,
+        username: profile.username,
+        name: profile.full_name,
+        role: profile.role as UserRole,
+        officeName: profile.office_name,
+        auth_level: profile.role === 'officer' ? 3 : profile.role === 'accountant' ? 2 : 1,
+        token: authData.session?.access_token,
+      };
+
+      localStorage.setItem('court_user_session', JSON.stringify(user));
+      localStorage.setItem('bailiff_vault_pin', profile.username + '_secure_2026');
+
+      setCurrentUser(user);
+      setLoginUsername('');
+      setLoginPassword('');
+      
+      // Refresh team roster from Supabase
+      fetchTeamData();
+
     } catch (err) {
-      // Offline login fallback using dynamic team state
+      // Offline / fallback: use local team state
+      console.warn('[Auth] Supabase unreachable, trying offline fallback:', err);
       const matched = team.find(u => u.username.toLowerCase().trim() === loginUsername.toLowerCase().trim());
       if (matched && loginPassword === matched.password) {
         const user = {
@@ -525,7 +568,7 @@ export default function App() {
           name: matched.name,
           role: matched.role,
           officeName: matched.office || 'مكتب المفوض القضائي بالرباط - الدائرة القضائية وبني ملال',
-          auth_level: matched.role === 'officer' ? 3 : matched.role === 'accountant' ? 2 : 1
+          auth_level: matched.role === 'officer' ? 3 : matched.role === 'accountant' ? 2 : 1,
         };
         localStorage.setItem('court_user_session', JSON.stringify(user));
         localStorage.setItem('bailiff_vault_pin', matched.username + '_secure_2026');
@@ -533,9 +576,8 @@ export default function App() {
         setLoginUsername('');
         setLoginPassword('');
       } else {
-        setLoginError('يتعذر الاتصال بخادم المصادقة المركزي كما فشل التحقق من الهوية محلياً بالذاكرة الآمنة.');
+        setLoginError('يتعذر الاتصال بخادم المصادقة المركزي. تحقق من اتصالك بالإنترنت.');
       }
-      console.error(err);
     } finally {
       setIsLoggingIn(false);
     }
@@ -549,40 +591,32 @@ export default function App() {
 
   const handleUpdateTeamMember = async (username: string, name: string, password?: string) => {
     try {
-      const response = await fetch('/api/team/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, name, password })
-      });
+      // Update profile in Supabase
+      const { error } = await supabase
+        .from('profiles')
+        .update({ full_name: name, updated_at: new Date().toISOString() })
+        .eq('username', username);
 
-      const resData = await response.json();
-      if (resData.success) {
-        setTeam(resData.team);
-        localStorage.setItem('court_team_roster', JSON.stringify(resData.team));
+      if (!error) {
+        // Refresh team list
+        await fetchTeamData();
 
-        // Sync with actual currentUser if editing own profile
+        // If updating own profile, sync current user
         if (currentUser && currentUser.username.toLowerCase().trim() === username.toLowerCase().trim()) {
-          const updatedUser = {
-            ...currentUser,
-            name: name
-          };
+          const updatedUser = { ...currentUser, name };
           setCurrentUser(updatedUser);
           localStorage.setItem('court_user_session', JSON.stringify(updatedUser));
         }
         return true;
       }
     } catch (e) {
-      console.warn('Network issue during member update, applying locally:', e);
+      console.warn('Supabase update failed, applying locally:', e);
     }
 
-    // Local / Offline / Fallback edit representation
+    // Local / Offline / Fallback
     const updatedTeam = team.map(m => {
       if (m.username.toLowerCase().trim() === username.toLowerCase().trim()) {
-        return {
-          ...m,
-          name,
-          password: password !== undefined ? password : m.password
-        };
+        return { ...m, name, password: password !== undefined ? password : m.password };
       }
       return m;
     });
@@ -590,10 +624,7 @@ export default function App() {
     localStorage.setItem('court_team_roster', JSON.stringify(updatedTeam));
 
     if (currentUser && currentUser.username.toLowerCase().trim() === username.toLowerCase().trim()) {
-      const updatedUser = {
-        ...currentUser,
-        name: name
-      };
+      const updatedUser = { ...currentUser, name };
       setCurrentUser(updatedUser);
       localStorage.setItem('court_user_session', JSON.stringify(updatedUser));
     }
