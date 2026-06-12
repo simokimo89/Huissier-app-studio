@@ -1,0 +1,24 @@
+{
+  "short_name": "مكتب المفوض",
+  "name": "نظام المفوض القضائي - المحكمة والتبليغات",
+  "description": "منصة رقمية متكاملة لمكتب المفوض القضائي تدعم العمل الميداني دون اتصال",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/color/192/justice-scales.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://img.icons8.com/color/512/justice-scales.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#ffffff",
+  "theme_color": "#003366",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "dir": "rtl",
+  "lang": "ar-MA"
+}

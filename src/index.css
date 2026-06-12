@@ -1,0 +1,21 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Cairo", "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Custom Professional Legal Palette (Moroccan Deep navy, Immersive Slate & Warm Gold) */
+  --color-legal-dark: #090f1d;
+  --color-legal-gold: #c39b4b;
+  --color-legal-blue: #2563eb;
+  --color-legal-teal: #10b981;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    background-color: #030712;
+  }
+}
+

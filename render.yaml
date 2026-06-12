@@ -1,0 +1,18 @@
+# Render Blueprint Configuration
+# Documentation: https://render.com/docs/blueprint-spec
+# Deploy: Connect this repo to Render, it auto-detects render.yaml
+
+services:
+  - type: web
+    name: huissier-app-studio
+    env: node
+    region: frankfurt  # Closest to Morocco for best latency
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22

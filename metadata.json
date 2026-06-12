@@ -1,0 +1,6 @@
+{
+  "name": "Judicial Bailiff Office",
+  "description": "An enterprise-grade RTL-compliant Progressive Web App for Judicial Bailiffs, featuring offline-first synchronization, high-contrast field operations, secure client-side AES-256 encryption, custom minutes generation, digital signing, and financial ledger auditing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
