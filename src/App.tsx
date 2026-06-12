@@ -583,12 +583,6 @@ export default function App() {
     }
   };
 
-  // Easy simulation button click autofill trigger
-  const handleQuickAutofillUser = (username: string, password?: string) => {
-    setLoginUsername(username);
-    setLoginPassword(password || 'admin2026');
-  };
-
   const handleUpdateTeamMember = async (username: string, name: string, password?: string) => {
     try {
       // Update profile in Supabase
@@ -632,6 +626,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    supabase.auth.signOut().catch(() => {});
     localStorage.removeItem('court_user_session');
     localStorage.removeItem('bailiff_vault_pin');
     setCurrentUser(null);
@@ -827,31 +822,7 @@ export default function App() {
               </button>
             </form>
 
-            <div className="border-t border-slate-800 pt-5 space-y-3">
-              <span className="block text-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                انقر لتحديد منصب افتراضي لمحاكاة الصلاحيات والتراخيص:
-              </span>
-              
-              <div className="grid grid-cols-1 gap-2">
-                {team.map((member) => (
-                  <button
-                    key={member.username}
-                    type="button"
-                    onClick={() => handleQuickAutofillUser(member.username, member.password)}
-                    className="bg-slate-950 hover:bg-blue-900/40 text-slate-300 py-2 px-3 rounded-lg border border-slate-800 text-[11px] font-bold text-right cursor-pointer flex justify-between items-center transition"
-                  >
-                    <span className="text-white">{member.name}</span>
-                    <span className={`font-semibold text-[8px] px-1.5 py-0.5 rounded border ${member.role === 'officer' ? 'bg-blue-950 text-blue-400 border-blue-800/50' : member.role === 'accountant' ? 'bg-emerald-950 text-emerald-400 border-emerald-900/50' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>
-                      {member.role}
-                    </span>
-                  </button>
-                ))}
-              </div>
 
-              <div className="text-center font-sans text-[9.5px] text-slate-500 pt-2 border-t border-slate-800">
-                رمز الحسابات الافتراضي: <span className="font-bold text-slate-300">admin2026</span> (أو كما تم تعديله من قبل المفوض)
-              </div>
-            </div>
 
           </div>
         </div>
@@ -870,6 +841,7 @@ export default function App() {
             isDarkMode={isDarkMode}
             onToggleDarkMode={handleToggleDarkMode}
             onUpdateProfile={handleUpdateProfile}
+            onLogout={handleLogout}
           />
 
           {/* Sync Progress Status Banner */}

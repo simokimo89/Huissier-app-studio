@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Scale, Wifi, WifiOff, RefreshCw, UserCheck, Moon, Sun, Edit3, Check, X, ShieldAlert } from 'lucide-react';
+import { Scale, Wifi, WifiOff, RefreshCw, UserCheck, Moon, Sun, Edit3, Check, X, ShieldAlert, LogOut } from 'lucide-react';
 import { User, UserRole } from '../types';
 
 interface NavbarProps {
@@ -16,6 +16,7 @@ interface NavbarProps {
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
   onUpdateProfile?: (name: string, officeName: string) => void;
+  onLogout: () => void;
 }
 
 export default function Navbar({
@@ -27,6 +28,7 @@ export default function Navbar({
   isDarkMode,
   onToggleDarkMode,
   onUpdateProfile,
+  onLogout,
 }: NavbarProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [tempName, setTempName] = useState(currentUser.name);
@@ -106,6 +108,16 @@ export default function Navbar({
                 <option value="accountant">محاسب الصندوق (Accountant)</option>
               </select>
             </div>
+
+            {/* Logout Button */}
+            <button
+              onClick={onLogout}
+              className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/30 hover:bg-rose-600 hover:text-white text-rose-400 transition-colors"
+              title="تسجيل خروج من الجلسة الآمنة"
+              id="navbar-logout-btn"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
 
             {/* Dark & Light Toggle */}
             <button
