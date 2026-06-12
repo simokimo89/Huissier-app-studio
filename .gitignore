@@ -8,3 +8,5 @@ coverage/
 !.env.example
 data/
 nul
+
+.vercel

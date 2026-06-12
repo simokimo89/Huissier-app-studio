@@ -493,58 +493,82 @@ export default function App() {
     });
   };
 
-  // 2. Supabase Authentication trigger
+  // 2. Supabase Authentication trigger (supports both username and email)
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginUsername.trim() || !loginPassword) {
-      setLoginError('الرجاء تعبئة اسم المستخدم وكلمة المرور!');
+      setLoginError('الرجاء تعبئة اسم المستخدم أو البريد الإلكتروني وكلمة المرور!');
       return;
     }
 
     setIsLoggingIn(true);
     setLoginError('');
 
+    const input = loginUsername.trim();
+    const isEmail = input.includes('@');
+
     try {
-      // 1. Look up user by username in Supabase profiles table
-      const { data: profiles, error: lookupError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('username', loginUsername.trim().toLowerCase());
+      let profile: any;
 
-      if (lookupError || !profiles || profiles.length === 0) {
-        // Fallback to local team if Supabase unreachable
-        throw new Error('Profile not found on Supabase');
-      }
+      if (isEmail) {
+        // --- LOGIN BY EMAIL ---
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email: input.toLowerCase(),
+          password: loginPassword,
+        });
 
-      const profile = profiles[0];
-      // Use convention: username@bailiff.ma as the auth email
-      const email = `${profile.username}@bailiff.ma`;
-
-      // 2. Authenticate with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password: loginPassword,
-      });
-
-      if (authError) {
-        if (authError.message?.includes('Invalid login')) {
-          setLoginError('رمز المرور غير صحيح لهذا المستخدم.');
-        } else {
-          setLoginError(`خطأ في المصادقة: ${authError.message}`);
+        if (authError) {
+          setLoginError(authError.message?.includes('Invalid login')
+            ? 'البريد الإلكتروني أو كلمة المرور غير صحيحين.'
+            : `خطأ في المصادقة: ${authError.message}`);
+          setIsLoggingIn(false);
+          return;
         }
-        setIsLoggingIn(false);
-        return;
+
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authData.user.id);
+
+        if (!profiles || profiles.length === 0) throw new Error('Profile not found');
+        profile = profiles[0];
+
+      } else {
+        // --- LOGIN BY USERNAME ---
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('username', input.toLowerCase());
+
+        if (!profiles || profiles.length === 0) throw new Error('Profile not found');
+        profile = profiles[0];
+
+        const { error: authError } = await supabase.auth.signInWithPassword({
+          email: `${profile.username}@bailiff.ma`,
+          password: loginPassword,
+        });
+
+        if (authError) {
+          setLoginError(authError.message?.includes('Invalid login')
+            ? 'رمز المرور غير صحيح لهذا المستخدم.'
+            : `خطأ في المصادقة: ${authError.message}`);
+          setIsLoggingIn(false);
+          return;
+        }
       }
 
-      // 3. Create session from profile + auth
+      // Get current session after successful auth
+      const { data: { session } } = await supabase.auth.getSession();
+
+      // Shared: create session from profile
       const user = {
-        id: authData.user.id,
+        id: profile.id,
         username: profile.username,
         name: profile.full_name,
         role: profile.role as UserRole,
         officeName: profile.office_name,
         auth_level: profile.role === 'officer' ? 3 : profile.role === 'accountant' ? 2 : 1,
-        token: authData.session?.access_token,
+        token: session?.access_token,
       };
 
       localStorage.setItem('court_user_session', JSON.stringify(user));
@@ -553,14 +577,12 @@ export default function App() {
       setCurrentUser(user);
       setLoginUsername('');
       setLoginPassword('');
-      
-      // Refresh team roster from Supabase
       fetchTeamData();
 
     } catch (err) {
       // Offline / fallback: use local team state
       console.warn('[Auth] Supabase unreachable, trying offline fallback:', err);
-      const matched = team.find(u => u.username.toLowerCase().trim() === loginUsername.toLowerCase().trim());
+      const matched = team.find(u => u.username.toLowerCase().trim() === loginUsername.trim().toLowerCase());
       if (matched && loginPassword === matched.password) {
         const user = {
           id: `usr_${matched.username}`,
@@ -776,7 +798,7 @@ export default function App() {
               )}
 
               <div>
-                <label className="block text-xs font-extrabold text-slate-300 mb-1.5">اسم المستخدم (المعرّف الإلكتروني) *</label>
+                <label className="block text-xs font-extrabold text-slate-300 mb-1.5">البريد الإلكتروني أو اسم المستخدم *</label>
                 <div className="relative">
                   <span className="absolute right-3 top-3 text-slate-400">
                     <User className="w-4 h-4" />
@@ -786,7 +808,7 @@ export default function App() {
                     required
                     value={loginUsername}
                     onChange={(e) => setLoginUsername(e.target.value)}
-                    placeholder="مثال: elkhalifi"
+                    placeholder="مثال: elkhalifi ou email@gmail.com"
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg pr-10 pl-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                     id="login-username-input"
                   />
