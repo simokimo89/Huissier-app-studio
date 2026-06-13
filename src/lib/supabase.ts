@@ -13,4 +13,5 @@ const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || 's
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-console.log('[Supabase] Client initialized with URL:', supabaseUrl);
+// Exported for direct fetch auth (workaround for supabase-js fetch header issue)
+export { supabaseUrl, supabaseAnonKey };
